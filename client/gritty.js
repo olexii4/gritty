@@ -28,7 +28,7 @@ export const _defaultFontFamily = defaultFontFamily;
 
 function gritty(element, options = {}) {
     const el = getEl(element);
-    
+
     const {
         socketPath = '',
         fontFamily = defaultFontFamily,
@@ -40,14 +40,14 @@ function gritty(element, options = {}) {
         Terminal = TerminalDefault.Terminal,
         WebglAddon = _WebglAddon,
     } = options;
-    
+
     const env = getEnv(options.env || {});
-    
+
     const socket = doConnect(prefix, socketPath, {
         connect,
     });
-    
-    return createTerminal(el, {
+
+    const result = createTerminal(el, {
         env,
         cwd,
         command,
@@ -57,6 +57,10 @@ function gritty(element, options = {}) {
         Terminal,
         WebglAddon,
     });
+
+    setupPostMessageBridge(result.socket, result.terminal);
+
+    return result;
 }
 
 function createTerminal(terminalContainer, overrides) {
@@ -165,13 +169,38 @@ function doConnect(prefix, socketPath, overrides = {}) {
     const {connect = io.connect} = overrides;
     const href = getHost();
     const FIVE_SECONDS = 5000;
-    
+
     const path = `${socketPath}/socket.io`;
     const socket = connect(href + prefix, {
         'max reconnection attempts': 2 ** 32,
         'reconnection limit': FIVE_SECONDS,
         path,
     });
-    
+
     return socket;
+}
+
+function setupPostMessageBridge(socket, terminal) {
+    const parent = globalThis.parent;
+
+    if (!parent || parent === globalThis)
+        return;
+
+    socket.on('connect', () => {
+        parent.postMessage({type: 'gritty-ready'}, '*');
+    });
+
+    globalThis.addEventListener('message', (event) => {
+        if (!event.data || typeof event.data.type !== 'string')
+            return;
+
+        const {type} = event.data;
+
+        if (type === 'gritty-data') {
+            socket.emit('data', event.data.data);
+        } else if (type === 'terminal-theme' && event.data.theme) {
+            terminal.options.theme = event.data.theme;
+            document.body.style.backgroundColor = event.data.theme.background || '';
+        }
+    });
 }

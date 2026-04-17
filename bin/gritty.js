@@ -81,11 +81,20 @@ function start(options) {
     const ip = c9 || '0.0.0.0';
     
     app
+        .use((_req, res, next) => {
+            res.setHeader('Access-Control-Allow-Origin', '*');
+            next();
+        })
         .use(gritty())
         .use(express.static(DIR));
     
-    const socket = new Server(server);
-    
+    const socket = new Server(server, {
+        cors: {
+            origin: '*',
+            methods: ['GET', 'POST'],
+        },
+    });
+
     gritty.listen(socket, {
         command,
         autoRestart,

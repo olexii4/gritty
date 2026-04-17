@@ -49,14 +49,20 @@ export default gritty;
 export function gritty(options = {}) {
     const router = Router();
     const {prefix = '/gritty'} = options;
-    
+
     router
         .route(`${prefix}/*name`)
+        .get(corsFn)
         .get(terminalFn(options))
         .get(staticFn);
-    
+
     return router;
-};
+}
+
+function corsFn(_req, res, next) {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    next();
+}
 function _terminalFn(options, req, res, next) {
     const {prefix = '/gritty'} = options;
     
@@ -106,17 +112,17 @@ function createTerminal(overrides = {}) {
 
 gritty.listen = (socket, options = {}) => {
     check(socket, options);
-    
+
     const {prefix, auth} = options;
-    
+
     socket
         .of(prefix || '/gritty')
         .on('connection', (socket) => {
             const connect = connectionWraped(options, socket);
-            
+
             if (!auth)
                 return connection(options, socket);
-            
+
             const reject = () => socket.emit('reject');
             socket.on('auth', auth(connect, reject));
         });
